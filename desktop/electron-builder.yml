@@ -1,8 +1,10 @@
 appId: dev.mailman.desktop
 productName: mailman
 executableName: mailman
+copyright: MIT
 directories:
   output: release
+  buildResources: build
 files:
   - src/**/*
   - package.json
@@ -12,11 +14,48 @@ extraResources:
     to: client
 asar: true
 npmRebuild: false
+
+# Auto-updates: installers and the latest*.yml feed files are uploaded to GitHub Releases
+# by the release workflow, and electron-updater checks this repo for newer versions.
+publish:
+  provider: github
+  owner: nsimi22
+  repo: mailman
+  releaseType: release
+
 mac:
   category: public.app-category.developer-tools
-  target: [dmg, zip]
+  icon: build/icon.png
+  # Developer ID signing + Apple notarization so Gatekeeper opens the app with no workaround.
+  # Credentials come from CI secrets: CSC_LINK / CSC_KEY_PASSWORD (Developer ID Application .p12),
+  # APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID (notarization).
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+dmg:
+  sign: false
+  contents:
+    - { x: 130, y: 220 }
+    - { x: 410, y: 220, type: link, path: /Applications }
+
 win:
-  target: [nsis, portable]
+  icon: build/icon.png
+  target: [nsis]
+  # Optional Authenticode signing: set WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD in CI.
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: false
+
 linux:
-  target: [AppImage, deb]
+  icon: build/icon.png
   category: Development
+  target: [AppImage, deb]

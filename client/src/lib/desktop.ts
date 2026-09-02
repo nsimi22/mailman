@@ -4,12 +4,23 @@ export interface DesktopSettings {
   password: string;
 }
 
+export interface UpdateState {
+  status: 'idle' | 'checking' | 'downloading' | 'ready' | 'up-to-date' | 'error';
+  version?: string;
+  percent?: number;
+  message?: string;
+}
+
 export interface DesktopBridge {
   version: string;
   platform: string;
   getSettings(): Promise<DesktopSettings>;
   setSettings(settings: DesktopSettings): Promise<{ ok: boolean; error?: string }>;
   testConnection(settings: DesktopSettings): Promise<{ ok: boolean; error?: string }>;
+  getUpdateState(): Promise<UpdateState>;
+  checkForUpdates(): Promise<void>;
+  installUpdate(): Promise<void>;
+  onUpdateState(cb: (state: UpdateState) => void): () => void;
 }
 
 declare global {

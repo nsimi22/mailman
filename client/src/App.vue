@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { api } from './lib/api';
-import { desktop } from './lib/desktop';
+import { desktop, type UpdateState } from './lib/desktop';
 import { copyText, loadLocal, saveLocal, shortMethod, uid } from './lib/util';
 import { draftFromSaved, emptyDraft, type Collection, type Environment, type HistoryEntry, type RequestDraft, type SavedRequest, type SendResult, type Variable } from './types';
 import SidebarPanel, { type SidebarActions, type SidebarTab } from './components/SidebarPanel.vue';
@@ -49,6 +49,9 @@ const dialog = ref<Dialog | null>(null);
 const toast = ref<string | null>(null);
 const loadError = ref<string | null>(null);
 const workspaceLabel = ref('');
+const update = ref<UpdateState | null>(null);
+const updateDismissed = ref(false);
+let offUpdate: (() => void) | undefined;
 
 const activeTab = computed(() => tabs.value.find((t) => t.id === activeTabId.value) ?? tabs.value[0] ?? null);
 const activeEnv = computed(() => environments.value.find((e) => e.id === activeEnvId.value) ?? null);
@@ -77,8 +80,13 @@ onMounted(async () => {
   // Keep the shared tree in sync with teammates' changes (and with OpenAPI syncs).
   poll = setInterval(() => { if (document.visibilityState === 'visible') { refreshCollections().catch(() => {}); refreshEnvironments().catch(() => {}); } }, 15_000);
   window.addEventListener('keydown', onKey);
+  if (desktop?.getUpdateState) {
+    desktop.getUpdateState().then((s) => { update.value = s; });
+    offUpdate = desktop.onUpdateState((s) => { update.value = s; updateDismissed.value = false; });
+  }
 });
-onUnmounted(() => { clearInterval(poll); window.removeEventListener('keydown', onKey); });
+onUnmounted(() => { clearInterval(poll); window.removeEventListener('keydown', onKey); offUpdate?.(); });
+const showUpdateBanner = computed(() => !!update.value && !updateDismissed.value && (update.value.status === 'ready' || update.value.status === 'downloading'));
 
 watch([tabs, activeTabId], () => saveLocal('mailman.tabs', { tabs: tabs.value, activeTabId: activeTabId.value } satisfies PersistedTabs), { deep: true });
 watch(activeEnvId, (v) => saveLocal('mailman.env', v));
@@ -243,6 +251,14 @@ const crumb = (t: Tab) => {
       </label>
     </header>
 
+    <div v-if="showUpdateBanner" class="banner update">
+      <template v-if="update!.status === 'ready'">
+        mailman {{ update!.version }} is ready to install.
+        <button class="small primary" @click="desktop?.installUpdate()">Restart to update</button>
+        <button class="link" @click="updateDismissed = true">Later</button>
+      </template>
+      <template v-else>Downloading mailman {{ update!.version }}… {{ update!.percent != null ? update!.percent + '%' : '' }}</template>
+    </div>
     <div v-if="loadError" class="banner error">
       Could not reach the mailman server: {{ loadError }}.
       <button v-if="isDesktop" class="link" @click="dialog = { kind: 'workspace' }">Check workspace settings</button>

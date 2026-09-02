@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Menu, dialog } from 'electron';
+import electronUpdater from 'electron-updater';
 import express from 'express';
 import { createServer } from 'node:http';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -9,6 +10,7 @@ import { createApp } from '@mailman/server/src/app.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const isDev = !!process.env.MAILMAN_DEV_URL;
+const { autoUpdater } = electronUpdater;
 
 // ---- settings ----------------------------------------------------------------
 const DEFAULT_SETTINGS = { mode: 'local', serverUrl: '', password: '' };
@@ -86,6 +88,39 @@ async function testConnection(s) {
   }
 }
 
+// ---- auto-updates ------------------------------------------------------------
+// Checks GitHub Releases (see electron-builder.yml `publish`) on startup and hourly,
+// downloads in the background, and lets the UI offer "Restart to update".
+let updateState = { status: 'idle' };
+function setUpdateState(next) {
+  updateState = next;
+  for (const w of BrowserWindow.getAllWindows()) w.webContents.send('update:status', updateState);
+}
+function setupAutoUpdater() {
+  if (!app.isPackaged || process.env.MAILMAN_NO_UPDATES) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('checking-for-update', () => setUpdateState({ status: 'checking' }));
+  autoUpdater.on('update-available', (info) => setUpdateState({ status: 'downloading', version: info.version }));
+  autoUpdater.on('update-not-available', () => setUpdateState({ status: 'up-to-date', version: app.getVersion() }));
+  autoUpdater.on('download-progress', (p) => setUpdateState({ ...updateState, status: 'downloading', percent: Math.round(p.percent) }));
+  autoUpdater.on('update-downloaded', (info) => setUpdateState({ status: 'ready', version: info.version }));
+  autoUpdater.on('error', (err) => setUpdateState({ status: 'error', message: err?.message || String(err) }));
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  setTimeout(check, 10_000);
+  setInterval(check, 60 * 60_000).unref();
+}
+async function checkForUpdatesInteractive() {
+  if (!app.isPackaged) { dialog.showMessageBox({ message: 'Updates only work in the packaged app.' }); return; }
+  try {
+    const r = await autoUpdater.checkForUpdates();
+    if (r?.updateInfo && r.updateInfo.version !== app.getVersion()) return; // download starts, UI shows the banner
+    dialog.showMessageBox({ message: `mailman ${app.getVersion()} is up to date.` });
+  } catch (err) {
+    dialog.showMessageBox({ type: 'error', message: 'Could not check for updates', detail: err?.message || String(err) });
+  }
+}
+
 // ---- window ------------------------------------------------------------------
 let win;
 function createWindow(url) {
@@ -139,6 +174,10 @@ function buildMenu() {
     { role: 'editMenu' },
     { label: 'View', submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { type: 'separator' }, { role: 'togglefullscreen' }] },
     { role: 'windowMenu' },
+    { label: 'Help', submenu: [
+      { label: 'Check for Updates…', click: () => checkForUpdatesInteractive() },
+      { label: `mailman ${app.getVersion()}`, enabled: false },
+    ] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
@@ -154,6 +193,10 @@ app.whenReady().then(async () => {
     return { ok: true };
   });
   ipcMain.handle('settings:test', (_e, s) => testConnection({ ...DEFAULT_SETTINGS, ...s }));
+  ipcMain.handle('update:state', () => updateState);
+  ipcMain.handle('update:check', () => checkForUpdatesInteractive());
+  ipcMain.handle('update:install', () => { if (updateState.status === 'ready') autoUpdater.quitAndInstall(); });
+  setupAutoUpdater();
 
   const local = await startEmbeddedServer();
   createWindow(isDev ? process.env.MAILMAN_DEV_URL : local);

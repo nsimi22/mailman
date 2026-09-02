@@ -65,11 +65,13 @@ npm install
 npm run desktop:dev
 ```
 
-Build installers for your platform (output in `desktop/release/`):
+Build unsigned installers locally for your platform (output in `desktop/release/`):
 
 ```bash
-npm run desktop:dist             # dmg/zip on macOS, nsis/portable on Windows, AppImage/deb on Linux
+npm run desktop:dist             # dmg/zip on macOS, nsis on Windows, AppImage/deb on Linux
 ```
+
+For signed, notarized builds that auto-update, use the release workflow below.
 
 Then in the app click **Local workspace** in the title bar → **Team server** → enter `http://your-server:4000` and the team password → **Test connection** → **Save & reload**.
 
@@ -91,6 +93,44 @@ Request URLs are `{{baseUrl}}/path`, so pick the server with an environment (`ba
 Linked collections are managed by the sync, so edits inside them are overwritten on the next sync. To customise a request, duplicate it into another collection, or **Unlink from spec** to freeze the collection as normal editable requests.
 
 Most frameworks can emit the spec for you: FastAPI and NestJS do it out of the box (`/openapi.json`, `@nestjs/swagger`), Express has `swagger-jsdoc` / `express-openapi`, Spring has `springdoc`, .NET has Swashbuckle, Rails has `rswag`.
+
+## Releases: signed builds and auto-updates
+
+The desktop app updates itself from this repo's **GitHub Releases** (`electron-updater`, config in `desktop/electron-builder.yml`). It checks on launch and hourly, downloads in the background, and shows a "Restart to update" banner. **Help → Check for Updates…** checks on demand.
+
+`.github/workflows/release.yml` builds and publishes installers whenever a `v*` tag is pushed:
+
+- **macOS**: universal (Intel + Apple Silicon) `.dmg` and `.zip`, signed with your Developer ID and notarized by Apple, so it opens with no `xattr` workaround.
+- **Windows**: NSIS installer (signed if you add a certificate).
+- **Linux**: AppImage and `.deb`.
+
+### One-time setup
+
+1. In your Apple Developer account, create a **Developer ID Application** certificate, export it from Keychain as a `.p12` with a password, and base64-encode it: `base64 -i cert.p12 | pbcopy`.
+2. Create an **app-specific password** for your Apple ID at appleid.apple.com.
+3. Add these repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `CSC_LINK` | base64 of the Developer ID Application `.p12` |
+| `CSC_KEY_PASSWORD` | the `.p12` password |
+| `APPLE_ID` | Apple ID email |
+| `APPLE_APP_SPECIFIC_PASSWORD` | the app-specific password |
+| `APPLE_TEAM_ID` | your 10-character Team ID |
+| `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` | optional, an Authenticode certificate for Windows |
+
+`GITHUB_TOKEN` is provided by Actions automatically; it is what uploads the release.
+
+### Shipping a version
+
+```bash
+npm run release -- 0.2.0        # bumps every package.json, commits, tags v0.2.0
+git push && git push origin v0.2.0
+```
+
+About 10–15 minutes later the release is live and every running copy of mailman picks it up within the hour. Team members install the first version from the Releases page; after that they never need to download anything again.
+
+If you change the repo owner or name, update `publish.owner` / `publish.repo` in `desktop/electron-builder.yml`.
 
 ## Configuration (server)
 
@@ -131,7 +171,8 @@ Scripts at the root:
 | `npm test` | Server unit + API tests |
 | `npm run typecheck` | Type-check the client |
 | `npm run desktop:pack` | Unpacked desktop build in `desktop/release/` (quick check) |
-| `npm run desktop:dist` | Installers for the current platform |
+| `npm run desktop:dist` | Unsigned installers for the current platform |
+| `npm run release -- x.y.z` | Bump versions, commit and tag; pushing the tag publishes signed installers |
 
 Requires Node.js 22.13 or newer (for the built-in SQLite module).
 

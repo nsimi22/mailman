@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@mailman/server": "0.1.0",
+    "electron-updater": "^6.8.9",
     "express": "^4.21.2"
   },
   "devDependencies": {
