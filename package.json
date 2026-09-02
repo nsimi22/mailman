@@ -17,7 +17,7 @@
     "dev": "concurrently -k -n server,client -c blue,magenta \"npm:dev -w server\" \"npm:dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run start -w server",
-    "test": "npm test -w server",
+    "test": "npm test -w server && npm test -w desktop",
     "typecheck": "npm run typecheck -w client",
     "desktop": "npm run build && npm run start -w desktop",
     "desktop:dev": "concurrently -k -n server,client,desktop -c blue,magenta,green \"npm:dev -w server\" \"npm:dev -w client\" \"wait-on http://localhost:5173 && npm run dev -w desktop\"",
