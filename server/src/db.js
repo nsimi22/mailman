@@ -56,6 +56,14 @@ CREATE INDEX IF NOT EXISTS idx_requests_folder ON requests(folder_id);
 CREATE INDEX IF NOT EXISTS idx_history_created ON history(created_at);
 `;
 
+/** Columns added after the first release; applied idempotently on startup. */
+const MIGRATIONS = [
+  ['collections', 'source_url', 'TEXT'],
+  ['collections', 'source_synced_at', 'TEXT'],
+  ['collections', 'source_error', 'TEXT'],
+  ['requests', 'source_key', 'TEXT'],
+];
+
 const now = () => new Date().toISOString();
 const parse = (s, fallback) => {
   try { return JSON.parse(s); } catch { return fallback; }
@@ -67,6 +75,10 @@ export function openDatabase(path) {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  for (const [table, column, type] of MIGRATIONS) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
   return new Store(db);
 }
 
@@ -83,6 +95,7 @@ const rowToRequest = (r) => r && ({
   auth: parse(r.auth, { type: 'none' }),
   description: r.description,
   sortOrder: r.sort_order,
+  sourceKey: r.source_key ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -100,6 +113,9 @@ const rowToCollection = (c) => c && ({
   name: c.name,
   description: c.description,
   sortOrder: c.sort_order,
+  sourceUrl: c.source_url ?? null,
+  sourceSyncedAt: c.source_synced_at ?? null,
+  sourceError: c.source_error ?? null,
   createdAt: c.created_at,
   updatedAt: c.updated_at,
 });
@@ -143,20 +159,20 @@ export class Store {
   getCollection(id) {
     return rowToCollection(this.db.prepare('SELECT * FROM collections WHERE id = ?').get(id));
   }
-  createCollection({ name, description = '' }) {
+  createCollection({ name, description = '', sourceUrl = null }) {
     const id = randomUUID();
     const ts = now();
     const order = this.db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM collections').get().n;
-    this.db.prepare('INSERT INTO collections (id, name, description, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, name, description, order, ts, ts);
+    this.db.prepare('INSERT INTO collections (id, name, description, sort_order, source_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, name, description, order, sourceUrl, ts, ts);
     return this.getCollection(id);
   }
   updateCollection(id, patch) {
     const cur = this.getCollection(id);
     if (!cur) return null;
     const next = { ...cur, ...patch };
-    this.db.prepare('UPDATE collections SET name = ?, description = ?, sort_order = ?, updated_at = ? WHERE id = ?')
-      .run(next.name, next.description, next.sortOrder, now(), id);
+    this.db.prepare('UPDATE collections SET name = ?, description = ?, sort_order = ?, source_url = ?, source_synced_at = ?, source_error = ?, updated_at = ? WHERE id = ?')
+      .run(next.name, next.description, next.sortOrder, next.sourceUrl ?? null, next.sourceSyncedAt ?? null, next.sourceError ?? null, now(), id);
     return this.getCollection(id);
   }
   deleteCollection(id) {
@@ -211,11 +227,11 @@ export class Store {
     const r = normalizeRequest(data);
     const order = this.db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM requests WHERE collection_id = ? AND folder_id IS ?').get(r.collectionId, r.folderId).n;
     this.db.prepare(`INSERT INTO requests
-      (id, collection_id, folder_id, name, method, url, params, headers, body, auth, description, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      (id, collection_id, folder_id, name, method, url, params, headers, body, auth, description, sort_order, source_key, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(id, r.collectionId, r.folderId, r.name, r.method, r.url,
         JSON.stringify(r.params), JSON.stringify(r.headers), JSON.stringify(r.body), JSON.stringify(r.auth),
-        r.description, order, ts, ts);
+        r.description, order, r.sourceKey, ts, ts);
     return this.getRequest(id);
   }
   updateRequest(id, patch) {
@@ -223,10 +239,10 @@ export class Store {
     if (!cur) return null;
     const r = normalizeRequest({ ...cur, ...patch });
     this.db.prepare(`UPDATE requests SET collection_id = ?, folder_id = ?, name = ?, method = ?, url = ?, params = ?, headers = ?,
-      body = ?, auth = ?, description = ?, sort_order = ?, updated_at = ? WHERE id = ?`)
+      body = ?, auth = ?, description = ?, sort_order = ?, source_key = ?, updated_at = ? WHERE id = ?`)
       .run(r.collectionId, r.folderId, r.name, r.method, r.url,
         JSON.stringify(r.params), JSON.stringify(r.headers), JSON.stringify(r.body), JSON.stringify(r.auth),
-        r.description, r.sortOrder ?? cur.sortOrder, now(), id);
+        r.description, r.sortOrder ?? cur.sortOrder, r.sourceKey, now(), id);
     return this.getRequest(id);
   }
   deleteRequest(id) {
@@ -344,5 +360,6 @@ export function normalizeRequest(data) {
     auth: normalizeAuth(data.auth),
     description: String(data.description ?? ''),
     sortOrder: data.sortOrder,
+    sourceKey: data.sourceKey ? String(data.sourceKey) : null,
   };
 }

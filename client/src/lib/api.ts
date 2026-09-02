@@ -21,6 +21,9 @@ export const api = {
     update: (id: string, patch: { name?: string; description?: string }) => call<Collection>('PATCH', `/collections/${id}`, patch),
     remove: (id: string) => call<void>('DELETE', `/collections/${id}`),
     exportUrl: (id: string) => `/api/collections/${id}/export`,
+    linkOpenApi: (url: string, name?: string) => call<Collection>('POST', '/collections/from-openapi', { url, name: name || undefined }),
+    sync: (id: string) => call<Collection & { synced: number }>('POST', `/collections/${id}/sync`),
+    unlink: (id: string) => call<Collection>('PATCH', `/collections/${id}`, { sourceUrl: null }),
   },
   folders: {
     create: (collectionId: string, name: string, parentId: string | null) => call<Folder>('POST', '/folders', { collectionId, name, parentId }),

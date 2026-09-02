@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { prepareRequest, executeRequest, toCurl, variablesToMap } from './send.js';
 import { importCollection, exportCollection, parseEnvironment, isPostmanEnvironment, exportEnvironment } from './postman.js';
+import { applySpecToCollection, fetchSpec, isOpenApiDocument, specTitle, syncCollection } from './openapi.js';
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -60,6 +61,12 @@ export function createApp(store, { password, staticDir, requestTimeoutMs = 30_00
     if (req.body?.name != null) patch.name = String(req.body.name).trim() || 'Untitled';
     if (req.body?.description != null) patch.description = String(req.body.description);
     if (req.body?.sortOrder != null) patch.sortOrder = Number(req.body.sortOrder) || 0;
+    if ('sourceUrl' in (req.body ?? {})) {
+      const url = req.body.sourceUrl ? String(req.body.sourceUrl).trim() : null;
+      if (url && !/^https?:\/\//i.test(url)) throw bad('sourceUrl must start with http:// or https://');
+      patch.sourceUrl = url;
+      if (!url) { patch.sourceError = null; patch.sourceSyncedAt = null; }
+    }
     const c = store.updateCollection(req.params.id, patch);
     if (!c) throw notFound('Collection');
     res.json(c);
@@ -75,9 +82,34 @@ export function createApp(store, { password, staticDir, requestTimeoutMs = 30_00
     res.json(json);
   });
 
-  // ---- import (Postman collection or environment) --------------------------
+  // ---- OpenAPI-linked collections ------------------------------------------
+  api.post('/collections/from-openapi', wrap(async (req, res) => {
+    const url = String(req.body?.url ?? '').trim();
+    if (!/^https?:\/\//i.test(url)) throw bad('Spec URL must start with http:// or https://');
+    let spec;
+    try { spec = await fetchSpec(url); } catch (err) { throw bad(err.message); }
+    const name = String(req.body?.name ?? '').trim() || specTitle(spec);
+    const collection = store.createCollection({ name, description: `Synced from ${url}`, sourceUrl: url });
+    applySpecToCollection(store, collection.id, spec);
+    res.status(201).json({ ...store.getCollection(collection.id), folders: store.listFolders(collection.id), requests: store.listRequests(collection.id) });
+  }));
+  api.post('/collections/:id/sync', wrap(async (req, res) => {
+    const c = store.getCollection(req.params.id);
+    if (!c) throw notFound('Collection');
+    if (!c.sourceUrl) throw bad('This collection is not linked to a spec');
+    const r = await syncCollection(store, c);
+    if (!r.ok) throw bad(r.error);
+    res.json({ ...store.getCollection(c.id), synced: r.count });
+  }));
+
+  // ---- import (Postman collection / environment, or an OpenAPI document) ---
   api.post('/import', (req, res) => {
     const json = req.body;
+    if (isOpenApiDocument(json)) {
+      const collection = store.createCollection({ name: specTitle(json) });
+      applySpecToCollection(store, collection.id, json);
+      return res.status(201).json({ type: 'collection', collection: store.getCollection(collection.id) });
+    }
     if (isPostmanEnvironment(json)) {
       const env = store.createEnvironment(parseEnvironment(json));
       return res.status(201).json({ type: 'environment', environment: env });

@@ -61,6 +61,9 @@ export interface Collection {
   name: string;
   description: string;
   sortOrder: number;
+  sourceUrl: string | null;
+  sourceSyncedAt: string | null;
+  sourceError: string | null;
   folders: Folder[];
   requests: SavedRequest[];
 }

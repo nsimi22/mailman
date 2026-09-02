@@ -49,3 +49,7 @@ export function loadLocal<T>(key: string, fallback: T): T {
 export function saveLocal(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
+
+export function shortMethod(m: string): string {
+  return ({ DELETE: 'DEL', OPTIONS: 'OPT', PATCH: 'PAT' } as Record<string, string>)[m] ?? m;
+}
