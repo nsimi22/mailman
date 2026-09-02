@@ -40,6 +40,11 @@ const run = spawnSync(cmd, cmdArgs, {
 rmSync(tmp, { recursive: true, force: true });
 
 const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+const failed = output.split('\n').find((l) => l.startsWith('SMOKE-EVAL-ERROR '));
+if (failed) {
+  console.error(`The app reported: ${failed.slice('SMOKE-EVAL-ERROR '.length)}`);
+  process.exit(1);
+}
 const line = output.split('\n').find((l) => l.startsWith('SMOKE-EVAL '));
 if (!line) {
   console.error(output);

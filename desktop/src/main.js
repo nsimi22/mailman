@@ -140,40 +140,32 @@ function createWindow(url) {
     },
   });
   win.loadURL(url);
-  // Headless smoke test hook: MAILMAN_SMOKE_SHOT=/path.png captures the window after load, then quits.
-  if (process.env.MAILMAN_SMOKE_SHOT) {
+  // Headless smoke-test hook, used by test/smoke.mjs: capture the window once it has loaded,
+  // optionally run a script against the real UI, then quit. Development builds only — it must
+  // never be reachable in a shipped app, since it runs a script from an env-supplied path.
+  if (process.env.MAILMAN_SMOKE_SHOT && !app.isPackaged) {
     win.webContents.once('did-finish-load', async () => {
-      await new Promise((r) => setTimeout(r, 1500));
-      const image = await win.webContents.capturePage();
-      writeFileSync(process.env.MAILMAN_SMOKE_SHOT, image.toPNG());
-      const title = await win.webContents.executeJavaScript('document.querySelector(".brand")?.textContent + " | bridge:" + typeof window.mailman + " | ws:" + document.querySelector(".workspace")?.textContent');
-      console.log('SMOKE', title);
-      if (process.env.MAILMAN_SMOKE_EVAL) {
-        // Drive the real UI: evaluate a script file in the renderer and print what it returns.
-        const script = readFileSync(process.env.MAILMAN_SMOKE_EVAL, 'utf8');
-        try {
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        const image = await win.webContents.capturePage();
+        writeFileSync(process.env.MAILMAN_SMOKE_SHOT, image.toPNG());
+        const title = await win.webContents.executeJavaScript('document.querySelector(".brand")?.textContent + " | bridge:" + typeof window.mailman + " | ws:" + document.querySelector(".workspace")?.textContent');
+        console.log('SMOKE', title);
+        if (process.env.MAILMAN_SMOKE_EVAL) {
+          // Drive the real UI: evaluate a script file in the renderer and print what it returns.
+          const script = readFileSync(process.env.MAILMAN_SMOKE_EVAL, 'utf8');
           // A script that triggers a reload never settles, so don't wait forever for one.
           const timeout = new Promise((_r, reject) => setTimeout(() => reject(new Error('script did not finish (the page may have reloaded)')), 30_000));
           console.log('SMOKE-EVAL', await Promise.race([win.webContents.executeJavaScript(script), timeout]));
-        } catch (err) {
-          console.log('SMOKE-EVAL-ERROR', err?.message || String(err));
+          const after = await win.webContents.capturePage();
+          writeFileSync(process.env.MAILMAN_SMOKE_SHOT.replace(/\.png$/, '-after.png'), after.toPNG());
         }
-        const after = await win.webContents.capturePage();
-        writeFileSync(process.env.MAILMAN_SMOKE_SHOT.replace(/\.png$/, '-after.png'), after.toPNG());
+      } catch (err) {
+        // Report on the same channel the runner reads, so a failure is never a silent hang.
+        console.log('SMOKE-EVAL-ERROR', err?.message || String(err));
+      } finally {
+        app.quit();
       }
-      if (process.env.MAILMAN_SMOKE_REMOTE) {
-        // exercise the team-server path: switch settings over IPC, then hit the proxied API
-        const out = await win.webContents.executeJavaScript(`(async () => {
-          const s = { mode: 'remote', serverUrl: ${JSON.stringify(process.env.MAILMAN_SMOKE_REMOTE)}, password: '' };
-          const test = await window.mailman.testConnection(s);
-          const set = await window.mailman.setSettings(s);
-          const cols = await fetch('/api/collections').then((r) => r.json());
-          await window.mailman.setSettings({ mode: 'local', serverUrl: '', password: '' });
-          return JSON.stringify({ test, set, names: cols.map((c) => c.name) });
-        })()`);
-        console.log('SMOKE-REMOTE', out);
-      }
-      app.quit();
     });
   }
   win.webContents.setWindowOpenHandler(({ url: target }) => { shell.openExternal(target); return { action: 'deny' }; });

@@ -4,6 +4,10 @@ import ModalShell from './ModalShell.vue';
 import { desktop, type DesktopSettings } from '../lib/desktop';
 
 const emit = defineEmits<{ close: [] }>();
+
+/** Anything can be thrown, and a blank status in this dialog tells the user nothing. */
+const errorText = (e: unknown) => (e instanceof Error && e.message) || String(e) || 'Something went wrong.';
+
 const settings = ref<DesktopSettings | null>(null);
 const status = ref<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
 const busy = ref(false);
@@ -17,7 +21,7 @@ const test = async () => {
     const r = await desktop.testConnection(settings.value);
     status.value = r.ok ? { kind: 'ok', text: 'Connected. The team server is reachable.' } : { kind: 'err', text: r.error ?? 'Could not connect.' };
   } catch (e) {
-    status.value = { kind: 'err', text: (e as Error).message };
+    status.value = { kind: 'err', text: errorText(e) };
   } finally {
     // Always clear `busy`: leaving it set would disable every button in the dialog.
     busy.value = false;
@@ -32,7 +36,7 @@ const save = async () => {
     if (!r.ok) { status.value = { kind: 'err', text: r.error ?? 'Could not save.' }; return; }
     window.location.reload();
   } catch (e) {
-    status.value = { kind: 'err', text: (e as Error).message };
+    status.value = { kind: 'err', text: errorText(e) };
   } finally {
     busy.value = false;
   }
