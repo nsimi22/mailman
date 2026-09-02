@@ -1,6 +1,6 @@
 {
   "name": "@mailman/desktop",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "private": true,
   "description": "mailman desktop app",
   "type": "module",
@@ -13,7 +13,7 @@
     "smoke": "node test/smoke.mjs"
   },
   "dependencies": {
-    "@mailman/server": "0.1.1",
+    "@mailman/server": "0.1.0",
     "electron-updater": "^6.8.9",
     "express": "^4.21.2"
   },
