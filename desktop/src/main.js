@@ -148,6 +148,19 @@ function createWindow(url) {
       writeFileSync(process.env.MAILMAN_SMOKE_SHOT, image.toPNG());
       const title = await win.webContents.executeJavaScript('document.querySelector(".brand")?.textContent + " | bridge:" + typeof window.mailman + " | ws:" + document.querySelector(".workspace")?.textContent');
       console.log('SMOKE', title);
+      if (process.env.MAILMAN_SMOKE_EVAL) {
+        // Drive the real UI: evaluate a script file in the renderer and print what it returns.
+        const script = readFileSync(process.env.MAILMAN_SMOKE_EVAL, 'utf8');
+        try {
+          // A script that triggers a reload never settles, so don't wait forever for one.
+          const timeout = new Promise((_r, reject) => setTimeout(() => reject(new Error('script did not finish (the page may have reloaded)')), 30_000));
+          console.log('SMOKE-EVAL', await Promise.race([win.webContents.executeJavaScript(script), timeout]));
+        } catch (err) {
+          console.log('SMOKE-EVAL-ERROR', err?.message || String(err));
+        }
+        const after = await win.webContents.capturePage();
+        writeFileSync(process.env.MAILMAN_SMOKE_SHOT.replace(/\.png$/, '-after.png'), after.toPNG());
+      }
       if (process.env.MAILMAN_SMOKE_REMOTE) {
         // exercise the team-server path: switch settings over IPC, then hit the proxied API
         const out = await win.webContents.executeJavaScript(`(async () => {

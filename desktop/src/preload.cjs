@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Note: this preload is sandboxed, so the context bridge structured-clones arguments before
+// anything here runs. Callers must pass plain, cloneable objects — client/src/lib/desktop.ts
+// snapshots the settings on the renderer side for exactly that reason.
 contextBridge.exposeInMainWorld('mailman', {
   version: '',
   platform: process.platform,

@@ -18,3 +18,7 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      # Launches the real Electron window and drives its UI, so renderer/main-process
+      # breakage (which unit tests can't see) fails the build. Needs a virtual display.
+      - name: Desktop smoke test
+        run: xvfb-run -a npm run smoke -w desktop

@@ -13,18 +13,29 @@ onMounted(async () => { if (desktop) settings.value = await desktop.getSettings(
 const test = async () => {
   if (!desktop || !settings.value) return;
   busy.value = true; status.value = { kind: 'info', text: 'Connecting…' };
-  const r = await desktop.testConnection(settings.value);
-  status.value = r.ok ? { kind: 'ok', text: 'Connected. The team server is reachable.' } : { kind: 'err', text: r.error ?? 'Could not connect.' };
-  busy.value = false;
+  try {
+    const r = await desktop.testConnection(settings.value);
+    status.value = r.ok ? { kind: 'ok', text: 'Connected. The team server is reachable.' } : { kind: 'err', text: r.error ?? 'Could not connect.' };
+  } catch (e) {
+    status.value = { kind: 'err', text: (e as Error).message };
+  } finally {
+    // Always clear `busy`: leaving it set would disable every button in the dialog.
+    busy.value = false;
+  }
 };
 
 const save = async () => {
   if (!desktop || !settings.value) return;
   busy.value = true;
-  const r = await desktop.setSettings(settings.value);
-  busy.value = false;
-  if (!r.ok) { status.value = { kind: 'err', text: r.error ?? 'Could not save.' }; return; }
-  window.location.reload();
+  try {
+    const r = await desktop.setSettings(settings.value);
+    if (!r.ok) { status.value = { kind: 'err', text: r.error ?? 'Could not save.' }; return; }
+    window.location.reload();
+  } catch (e) {
+    status.value = { kind: 'err', text: (e as Error).message };
+  } finally {
+    busy.value = false;
+  }
 };
 </script>
 
@@ -45,7 +56,7 @@ const save = async () => {
       <label class="field"><span>Team password <small class="hint">(leave blank if the server has none)</small></span><input v-model="settings.password" type="password" /></label>
       <button type="button" class="small" :disabled="busy || !settings.serverUrl.trim()" @click="test">Test connection</button>
     </template>
-    <div v-if="status" class="hint" :class="{ warn: status.kind === 'err', ok: status.kind === 'ok' }" style="margin-top: 8px">{{ status.text }}</div>
+    <div v-if="status" class="hint workspace-status" :class="{ warn: status.kind === 'err', ok: status.kind === 'ok' }" style="margin-top: 8px">{{ status.text }}</div>
     <div class="modal-actions">
       <button type="button" @click="emit('close')">Cancel</button>
       <button type="button" class="primary" :disabled="busy || (settings.mode === 'remote' && !settings.serverUrl.trim())" @click="save">Save &amp; reload</button>

@@ -9,7 +9,8 @@
     "start": "electron .",
     "dev": "cross-env MAILMAN_DEV_URL=http://localhost:5173 electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "smoke": "node test/smoke.mjs"
   },
   "dependencies": {
     "@mailman/server": "0.1.0",
