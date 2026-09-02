@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '@mailman/server/src/db.js';
 import { createApp } from '@mailman/server/src/app.js';
+import { describeFetchError } from './connection-error.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const isDev = !!process.env.MAILMAN_DEV_URL;
@@ -55,7 +56,7 @@ async function startEmbeddedServer() {
       for (const h of ['content-type', 'content-disposition']) { const v = upstream.headers.get(h); if (v) res.set(h, v); }
       res.send(Buffer.from(await upstream.arrayBuffer()));
     } catch (err) {
-      res.status(502).json({ error: `Team server unreachable: ${err?.cause?.message || err.message}` });
+      res.status(502).json({ error: describeFetchError(err, normalizeUrl(settings.serverUrl)) });
     }
   });
   outer.use(local);
@@ -84,7 +85,7 @@ async function testConnection(s) {
     if (!json?.ok) return { ok: false, error: 'That URL does not look like a mailman server.' };
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err?.cause?.message || err.message };
+    return { ok: false, error: describeFetchError(err, url) };
   }
 }
 

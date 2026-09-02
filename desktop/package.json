@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "cross-env MAILMAN_DEV_URL=http://localhost:5173 electron .",
+    "test": "node --test test/*.test.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "smoke": "node test/smoke.mjs"

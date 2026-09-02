@@ -56,7 +56,9 @@ const save = async () => {
       </label>
     </div>
     <template v-if="settings.mode === 'remote'">
-      <label class="field"><span>Server URL</span><input v-model="settings.serverUrl" placeholder="https://mailman.internal.example.com" spellcheck="false" /></label>
+      <!-- The placeholder used to read https://…, which sent people to https against a
+           server that only speaks plain HTTP on 4000. Show the common shape instead. -->
+      <label class="field"><span>Server URL <small class="hint">(http:// unless you put the server behind TLS)</small></span><input v-model="settings.serverUrl" placeholder="http://mailman.internal:4000" spellcheck="false" /></label>
       <label class="field"><span>Team password <small class="hint">(leave blank if the server has none)</small></span><input v-model="settings.password" type="password" /></label>
       <button type="button" class="small" :disabled="busy || !settings.serverUrl.trim()" @click="test">Test connection</button>
     </template>
