@@ -1,0 +1,78 @@
+# Builds signed installers for macOS (Developer ID + notarized, universal), Windows and Linux,
+# and publishes them to a GitHub Release so the desktop app can auto-update.
+#
+# Trigger: push a tag like v0.2.0 (use `npm run release -- 0.2.0`).
+#
+# Secrets to add under Settings → Secrets and variables → Actions:
+#   CSC_LINK                    base64 of your "Developer ID Application" certificate (.p12)
+#   CSC_KEY_PASSWORD            password for that .p12
+#   APPLE_ID                    Apple ID email used for notarization
+#   APPLE_APP_SPECIFIC_PASSWORD app-specific password for that Apple ID (appleid.apple.com)
+#   APPLE_TEAM_ID               10-character team id
+#   WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD   (optional) Authenticode certificate for Windows
+#
+# These are the same five secret names video-chat-app uses, so paste the same values.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            args: --mac
+          - os: windows-latest
+            args: --win
+          - os: ubuntu-latest
+            args: --linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      # Signing + notarization secrets, injected ONLY on the mac runner (same pattern as
+      # video-chat-app). An empty CSC_LINK on Windows/Linux is misread by electron-builder
+      # as a broken Windows signing cert and fails the build.
+      - name: Configure macOS signing
+        if: matrix.os == 'macos-latest'
+        run: |
+          {
+            echo "CSC_LINK=${{ secrets.CSC_LINK }}"
+            echo "CSC_KEY_PASSWORD=${{ secrets.CSC_KEY_PASSWORD }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
+
+      # Optional Windows Authenticode signing; only set when the secret exists.
+      - name: Configure Windows signing
+        if: matrix.os == 'windows-latest' && env.HAS_WIN_CERT == 'true'
+        shell: bash
+        env:
+          HAS_WIN_CERT: ${{ secrets.WIN_CSC_LINK != '' }}
+        run: |
+          {
+            echo "CSC_LINK=${{ secrets.WIN_CSC_LINK }}"
+            echo "CSC_KEY_PASSWORD=${{ secrets.WIN_CSC_KEY_PASSWORD }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Build and publish installers
+        working-directory: desktop
+        run: npx electron-builder ${{ matrix.args }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

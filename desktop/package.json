@@ -1,0 +1,30 @@
+{
+  "name": "@mailman/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "mailman desktop app",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env MAILMAN_DEV_URL=http://localhost:5173 electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "@mailman/server": "0.1.0",
+    "electron-updater": "^6.8.9",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.5.0",
+    "cross-env": "^7.0.3",
+    "electron": "44.1.1",
+    "electron-builder": "^26.15.3"
+  },
+  "author": "mailman contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nsimi22/mailman.git"
+  }
+}
