@@ -56,8 +56,9 @@ export function prepareRequest(input, vars = {}) {
     const creds = Buffer.from(`${i(auth.username)}:${i(auth.password)}`).toString('base64');
     headers.push(['Authorization', `Basic ${creds}`]);
   } else if (auth.type === 'apikey' && auth.key) {
-    if (auth.in === 'query') queryPairs.push([i(auth.key), i(auth.value)]);
-    else if (!hasHeader(auth.key)) headers.push([i(auth.key), i(auth.value)]);
+    const keyName = i(auth.key);
+    if (auth.in === 'query') queryPairs.push([keyName, i(auth.value)]);
+    else if (!hasHeader(keyName)) headers.push([keyName, i(auth.value)]);
   }
 
   url = appendQuery(url, queryPairs);
@@ -93,11 +94,27 @@ export function prepareRequest(input, vars = {}) {
     warnings.push(`Body ignored for ${req.method} requests.`);
   }
 
-  for (const name of unresolvedVariables([req.url, ...req.headers.map((h) => h.value), b.content ?? ''].join(' '), vars)) {
+  for (const name of unresolvedVariables(templatedStrings(req).join(' '), vars)) {
     warnings.push(`Unresolved variable {{${name}}}.`);
   }
 
   return { method: req.method, url, headers, body, bodyDescription, warnings };
+}
+
+/** Every user-supplied string that gets interpolated when the request is sent (enabled rows only). */
+export function templatedStrings(req) {
+  const out = [req.url];
+  const kv = (list) => { for (const x of list ?? []) if (x.enabled !== false && x.key) out.push(x.key, x.value); };
+  kv(req.params);
+  kv(req.headers);
+  const b = req.body ?? {};
+  if (b.mode === 'json' || b.mode === 'raw') out.push(b.content ?? '');
+  if (b.mode === 'form' || b.mode === 'urlencoded') kv(b.fields);
+  const a = req.auth ?? {};
+  if (a.type === 'bearer') out.push(a.token ?? '');
+  if (a.type === 'basic') out.push(a.username ?? '', a.password ?? '');
+  if (a.type === 'apikey') out.push(a.key ?? '', a.value ?? '');
+  return out.filter((s) => typeof s === 'string');
 }
 
 const TEXT_TYPES = /^(text\/|application\/(json|xml|javascript|x-www-form-urlencoded|graphql|yaml|x-yaml|problem\+json|ld\+json)|.*\+(json|xml))/i;

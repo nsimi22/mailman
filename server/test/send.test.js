@@ -47,3 +47,24 @@ test('toCurl quotes safely', () => {
   assert.ok(c.includes("-H 'A: b'"));
   assert.ok(c.includes("--data-raw 'hi'"));
 });
+
+test('apikey header is not duplicated when its name comes from a variable', () => {
+  const p = prepareRequest({
+    method: 'GET', url: 'http://x',
+    headers: [{ key: 'X-Api-Key', value: 'from-header' }],
+    auth: { type: 'apikey', key: '{{keyName}}', value: 'from-auth', in: 'header' },
+  }, { keyName: 'x-api-key' });
+  assert.deepEqual(p.headers, [['X-Api-Key', 'from-header']]);
+});
+
+test('unresolved variables are reported from params, header keys, auth and form fields', () => {
+  const p = prepareRequest({
+    method: 'POST', url: 'http://x',
+    params: [{ key: 'q', value: '{{p1}}' }, { key: 'off', value: '{{ignored}}', enabled: false }],
+    headers: [{ key: '{{h1}}', value: 'v' }],
+    auth: { type: 'bearer', token: '{{tok}}' },
+    body: { mode: 'urlencoded', fields: [{ key: 'f', value: '{{f1}}' }] },
+  }, {});
+  const names = p.warnings.filter((w) => w.startsWith('Unresolved')).map((w) => w.match(/\{\{(\w+)\}\}/)[1]).sort();
+  assert.deepEqual(names, ['f1', 'h1', 'p1', 'tok']);
+});
