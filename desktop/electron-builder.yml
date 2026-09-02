@@ -63,5 +63,8 @@ nsis:
 linux:
   icon: build/icon.png
   category: Development
+  # Required by fpm for the .deb target; without it the Linux build fails after the
+  # AppImage is produced ("It is required to set Linux .deb package maintainer").
+  maintainer: nsimi22 <nsimi22@users.noreply.github.com>
   artifactName: mailman-linux-${arch}.${ext}
   target: [AppImage, deb]
