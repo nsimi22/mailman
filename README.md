@@ -12,6 +12,28 @@ A self-hosted API client for your team. Postman without the bill.
 
 ![mailman screenshot](docs/screenshot.png)
 
+## Download
+
+Latest release: **[v0.1.0](https://github.com/nsimi22/mailman/releases/latest)**
+
+| Platform | Download | Signing |
+| --- | --- | --- |
+| **macOS** (Intel + Apple Silicon) | [mailman-mac-universal.dmg](https://github.com/nsimi22/mailman/releases/latest/download/mailman-mac-universal.dmg) · [.zip](https://github.com/nsimi22/mailman/releases/latest/download/mailman-mac-universal.zip) | Signed with a Developer ID certificate and **notarized by Apple** |
+| **Windows** (x64) | [mailman-win-x64.exe](https://github.com/nsimi22/mailman/releases/latest/download/mailman-win-x64.exe) | Not signed with a trusted certificate |
+| **Linux** (x86_64) | [mailman-linux-x86_64.AppImage](https://github.com/nsimi22/mailman/releases/latest/download/mailman-linux-x86_64.AppImage) | Unsigned, as is normal for AppImages |
+
+**macOS**: open the `.dmg`, drag mailman to Applications, and launch it. Because the app is
+signed and notarized, Gatekeeper opens it directly — there is no "unidentified developer"
+dialog and no `xattr -dr com.apple.quarantine` workaround.
+
+**Windows**: SmartScreen shows *"Windows protected your PC"* because the installer carries no
+trusted Authenticode signature. Choose **More info → Run anyway**. (Adding a code-signing
+certificate removes this — see [One-time setup](#one-time-setup).)
+
+**Linux**: `chmod +x mailman-linux-x86_64.AppImage` and run it.
+
+Once installed, mailman updates itself — see [Releases](#releases-signed-builds-and-auto-updates).
+
 ## How it fits together
 
 ```
@@ -58,6 +80,8 @@ MAILMAN_PASSWORD=changeme npm start
 
 ### 2. Run the desktop app
 
+Most people should just [download an installer](#download). To work on the app itself:
+
 Development (hot reload for the UI):
 
 ```bash
@@ -71,7 +95,8 @@ Build unsigned installers locally for your platform (output in `desktop/release/
 npm run desktop:dist             # dmg/zip on macOS, nsis on Windows, AppImage/deb on Linux
 ```
 
-For signed, notarized builds that auto-update, use the release workflow below.
+Local builds are unsigned. Signed, notarized builds that auto-update come from the release
+workflow below.
 
 Then in the app click **Local workspace** in the title bar → **Team server** → enter `http://your-server:4000` and the team password → **Test connection** → **Save & reload**.
 
@@ -100,11 +125,24 @@ The desktop app updates itself from this repo's **GitHub Releases** (`electron-u
 
 `.github/workflows/release.yml` builds and publishes installers whenever a `v*` tag is pushed:
 
-- **macOS**: universal (Intel + Apple Silicon) `.dmg` and `.zip`, signed with your Developer ID and notarized by Apple, so it opens with no `xattr` workaround.
-- **Windows**: NSIS installer (signed if you add a certificate).
+- **macOS**: universal (Intel + Apple Silicon) `.dmg` and `.zip`, signed with a Developer ID certificate and notarized by Apple, so Gatekeeper opens the app with no `xattr` workaround. This is live — the v0.1.0 build was signed as *Developer ID Application: Power My Fitness LLC* and notarization succeeded.
+- **Windows**: NSIS installer. Not signed with a trusted Authenticode certificate today, so SmartScreen warns; add `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` to sign it.
 - **Linux**: AppImage and `.deb`.
 
+To confirm a given release really notarized rather than trusting this file:
+
+```bash
+gh run view <run-id> --repo nsimi22/mailman --log | grep -i notarize
+# → [notarize] submitting mailman.app to notarytool …
+# → [notarize] done.
+```
+
 ### One-time setup
+
+**Already done for `nsimi22/mailman`** — the five macOS secrets are configured, using the same
+*Developer ID Application: Power My Fitness LLC* certificate (Team `N572CBVG5F`, valid to
+2031-06-03) that signs Huddle. Tagging a release signs and notarizes with no further setup.
+The rest of this section is for anyone forking the project.
 
 The signing setup is identical to `video-chat-app` (Huddle): same secret names, same notarization hook. Your existing Developer ID certificate signs this app too, so nothing new is needed from Apple. GitHub does not let secrets be read back or shared between personal repos, so paste the same five values into this repo (Settings → Secrets and variables → Actions):
 
