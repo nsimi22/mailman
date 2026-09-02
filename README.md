@@ -106,9 +106,9 @@ The desktop app updates itself from this repo's **GitHub Releases** (`electron-u
 
 ### One-time setup
 
-1. In your Apple Developer account, create a **Developer ID Application** certificate, export it from Keychain as a `.p12` with a password, and base64-encode it: `base64 -i cert.p12 | pbcopy`.
-2. Create an **app-specific password** for your Apple ID at appleid.apple.com.
-3. Add these repository secrets (Settings → Secrets and variables → Actions):
+The signing setup is identical to `video-chat-app` (Huddle): same secret names, same notarization hook. Your existing Developer ID certificate signs this app too, so nothing new is needed from Apple. GitHub does not let secrets be read back or shared between personal repos, so paste the same five values into this repo (Settings → Secrets and variables → Actions):
+
+If you ever need to recreate them: in your Apple Developer account, create a **Developer ID Application** certificate, export it from Keychain as a `.p12` with a password, base64-encode it (`base64 -i cert.p12 | pbcopy`), and create an **app-specific password** at appleid.apple.com.
 
 | Secret | Value |
 | --- | --- |

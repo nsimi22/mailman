@@ -14,6 +14,8 @@ extraResources:
     to: client
 asar: true
 npmRebuild: false
+# Notarize after signing (skips itself when the Apple secrets are absent).
+afterSign: build/notarize.cjs
 
 # Auto-updates: installers and the latest*.yml feed files are uploaded to GitHub Releases
 # by the release workflow, and electron-updater checks this repo for newer versions.
@@ -28,12 +30,14 @@ mac:
   icon: build/icon.png
   # Developer ID signing + Apple notarization so Gatekeeper opens the app with no workaround.
   # Credentials come from CI secrets: CSC_LINK / CSC_KEY_PASSWORD (Developer ID Application .p12),
-  # APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID (notarization).
+  # APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID (notarization, via the afterSign hook).
+  minimumSystemVersion: "12.0.0"
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  notarize: true
+  notarize: false
+  artifactName: mailman-mac-${arch}.${ext}
   target:
     - target: dmg
       arch: [universal]
@@ -47,6 +51,7 @@ dmg:
 
 win:
   icon: build/icon.png
+  artifactName: mailman-win-${arch}.${ext}
   target: [nsis]
   # Optional Authenticode signing: set WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD in CI.
 nsis:
@@ -58,4 +63,5 @@ nsis:
 linux:
   icon: build/icon.png
   category: Development
+  artifactName: mailman-linux-${arch}.${ext}
   target: [AppImage, deb]
