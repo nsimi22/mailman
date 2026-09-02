@@ -1,0 +1,31 @@
+{
+  "name": "mailman",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted, team-shared API client. Postman without the bill.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client",
+    "desktop"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c blue,magenta \"npm:dev -w server\" \"npm:dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "npm test -w server",
+    "typecheck": "npm run typecheck -w client",
+    "desktop": "npm run build && npm run start -w desktop",
+    "desktop:dev": "concurrently -k -n server,client,desktop -c blue,magenta,green \"npm:dev -w server\" \"npm:dev -w client\" \"wait-on http://localhost:5173 && npm run dev -w desktop\"",
+    "desktop:pack": "npm run build && npm run pack -w desktop",
+    "desktop:dist": "npm run build && npm run dist -w desktop"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "wait-on": "^8.0.1"
+  }
+}

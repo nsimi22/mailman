@@ -1,0 +1,15 @@
+services:
+  mailman:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      # Everyone on the team uses this one password (leave unset for no auth on a trusted network).
+      MAILMAN_PASSWORD: ${MAILMAN_PASSWORD:-}
+      MAILMAN_TIMEOUT_MS: "30000"
+    volumes:
+      - mailman-data:/data
+    restart: unless-stopped
+
+volumes:
+  mailman-data:

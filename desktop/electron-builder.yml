@@ -1,0 +1,22 @@
+appId: dev.mailman.desktop
+productName: mailman
+executableName: mailman
+directories:
+  output: release
+files:
+  - src/**/*
+  - package.json
+  - "!**/*.map"
+extraResources:
+  - from: ../client/dist
+    to: client
+asar: true
+npmRebuild: false
+mac:
+  category: public.app-category.developer-tools
+  target: [dmg, zip]
+win:
+  target: [nsis, portable]
+linux:
+  target: [AppImage, deb]
+  category: Development
